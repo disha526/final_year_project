@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Uploaded Video Crime Analytics & Real-Time Graphs | Sentinel-AI</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230284c7'><path d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z'/></svg>">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for Distribution & Area Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.0/vanilla-tilt.min.js"></script>
+    <style>
+        .chart-card {
+            background: white;
+            border: 1px solid var(--border-sky);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: var(--shadow-md);
+            position: relative;
+        }
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+        }
+        .forensic-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 14px;
+        }
+        .forensic-table th {
+            background: var(--sky-50);
+            color: var(--sky-900);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 12px 16px;
+            border-bottom: 2px solid var(--border-sky);
+            text-align: left;
+        }
+        .forensic-table td {
+            padding: 14px 16px;
+            font-size: 0.88rem;
+            color: var(--slate-800);
+            border-bottom: 1px solid var(--border-light);
+            vertical-align: middle;
+        }
+        .forensic-table tr:hover td {
+            background: var(--sky-50);
+        }
+        .snapshot-thumb {
+            width: 60px;
+            height: 38px;
+            object-fit: cover;
+            border-radius: 6px;
+            border: 1px solid var(--border-sky);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .snapshot-thumb:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sticky Glass Navbar -->
+    <header class="navbar">
+        <a href="/" class="nav-brand">
+            <div class="brand-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div class="brand-info">
+                <h1>SENTINEL-AI <span class="brand-badge">YOLO11</span></h1>
+                <div class="brand-tagline">Autonomous Crime Intelligence Engine</div>
+            </div>
+        </a>
+
+        <nav class="nav-links">
+            <a href="/" class="nav-item"><i class="fa-solid fa-house"></i> Portfolio</a>
+            <a href="/upload" class="nav-item"><i class="fa-solid fa-cloud-arrow-up"></i> Upload Video</a>
+            <a href="/live" class="nav-item"><i class="fa-solid fa-video"></i> Live Webcam</a>
+            <a href="/history" class="nav-item active"><i class="fa-solid fa-chart-pie"></i> Video Analytics</a>
+        </nav>
+
+        <div class="nav-auth">
+            {% if session.get('user') %}
+                <span style="font-size: 0.85rem; font-weight: 700; color: var(--sky-800); background: var(--sky-100); padding: 6px 14px; border-radius: 20px;">
+                    <i class="fa-solid fa-user-check"></i> {{ session.get('user').fullname }}
+                </span>
+                <a href="/logout" class="btn-nav-login" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">Logout</a>
+            {% else %}
+                <a href="/login" class="btn-nav-login">Sign In</a>
+                <a href="/signup" class="btn-nav-signup">Get Started</a>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Main Analytics Container -->
+    <main style="max-width: 1360px; margin: 30px auto; padding: 0 20px; flex: 1;">
+        
+        <!-- Header Banner with Active Video Label -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span class="pulse-dot"></span>
+                    <span style="font-size: 0.78rem; font-weight: 700; text-transform: uppercase; color: var(--sky-700); background: var(--sky-100); padding: 4px 12px; border-radius: var(--radius-full);">
+                        Live Telemetry Stream
+                    </span>
+                    <span id="activeVideoBadge" style="font-size: 0.8rem; font-weight: 700; color: var(--slate-900); background: white; border: 1px solid var(--border-sky); padding: 4px 12px; border-radius: var(--radius-full);">
+                        <i class="fa-solid fa-film" style="color: var(--sky-600); margin-right: 4px;"></i> Uploaded Video Analytics
+                    </span>
+                </div>
+                <h1 style="font-size: 2.1rem; font-weight: 800; color: var(--slate-900); letter-spacing: -0.02em;">
+                    Real-Time Graphs for Uploaded Video
+                </h1>
+                <p style="color: var(--text-muted); font-size: 0.95rem;">
+                    Dynamic Category Distribution and Confidence Timeline Area Charts streaming in real-time as video plays.
+                </p>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <a href="/upload" class="btn-outline-sky" style="padding: 10px 18px; font-size: 0.88rem;">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Upload Another Video
+                </a>
+                <a href="/api/export_incidents" class="btn-primary-sky" style="padding: 10px 18px; font-size: 0.88rem;">
+                    <i class="fa-solid fa-file-csv"></i> Export Incident CSV
+                </a>
+            </div>
+        </div>
+
+        <!-- 4 KPI Summary Cards for Uploaded Video -->
+        <div class="kpi-grid" style="margin-top: 10px; margin-bottom: 28px;">
+            <div class="kpi-card card-3d">
+                <div class="kpi-icon-wrap">
+                    <i class="fa-solid fa-video" style="font-size: 1.3rem;"></i>
+                </div>
+                <div>
+                    <div id="kpiTotalFrames" class="kpi-val">0</div>
+                    <div class="kpi-label">Analyzed Video Points</div>
+                </div>
+            </div>
+
+            <div class="kpi-card card-3d">
+                <div class="kpi-icon-wrap" style="color: #ef4444; background: rgba(239, 68, 68, 0.1);">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 1.3rem;"></i>
+                </div>
+                <div>
+                    <div id="kpiPeakConf" class="kpi-val">0%</div>
+                    <div class="kpi-label">Peak Threat Confidence</div>
+                </div>
+            </div>
+
+            <div class="kpi-card card-3d">
+                <div class="kpi-icon-wrap" style="color: var(--sky-700); background: var(--sky-100);">
+                    <i class="fa-solid fa-tags" style="font-size: 1.3rem;"></i>
+                </div>
+                <div>
+                    <div id="kpiDominantCrime" class="kpi-val" style="font-size: 1.35rem; line-height: 1.3;">Normal activity</div>
+                    <div class="kpi-label">Dominant Classification</div>
+                </div>
+            </div>
+
+            <div class="kpi-card card-3d">
+                <div class="kpi-icon-wrap" style="color: var(--accent-safe); background: rgba(16, 185, 129, 0.1);">
+                    <i class="fa-solid fa-clipboard-check" style="font-size: 1.3rem;"></i>
+                </div>
+                <div>
+                    <div id="kpiIncidentCount" class="kpi-val">0</div>
+                    <div class="kpi-label">Incidents Flagged</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Real-Time Graphs Grid (Distribution Chart & Area Chart ONLY for Uploaded Video) -->
+        <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 24px; margin-bottom: 30px;">
+            
+            <!-- Graph 1: Real-Time Crime Category Distribution Chart (Doughnut) -->
+            <div class="chart-card card-3d">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <div>
+                        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--slate-900);">
+                            <i class="fa-solid fa-chart-pie" style="color: var(--sky-600); margin-right: 8px;"></i>
+                            Crime Category Distribution
+                        </h3>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">
+                            Real-time proportion of detected categories in uploaded video
+                        </div>
+                    </div>
+                    <span style="font-size: 0.75rem; font-weight: 700; background: var(--sky-100); color: var(--sky-700); padding: 4px 10px; border-radius: var(--radius-full);">
+                        Live Doughnut
+                    </span>
+                </div>
+
+                <div style="position: relative; height: 320px; display: flex; align-items: center; justify-content: center;">
+                    <canvas id="distributionChartCanvas"></canvas>
+                </div>
+
+                <div style="font-size: 0.78rem; color: var(--text-muted); text-align: center; margin-top: 12px;">
+                    Aggregated across all frames of the uploaded video file.
+                </div>
+            </div>
+
+            <!-- Graph 2: Real-Time Timeline Area Chart -->
+            <div class="chart-card card-3d">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <div>
+                        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--slate-900);">
+                            <i class="fa-solid fa-chart-area" style="color: var(--sky-600); margin-right: 8px;"></i>
+                            Real-Time Threat Confidence Timeline
+                        </h3>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">
+                            Continuous spline area curve plotting confidence % against video elapsed time
+                        </div>
+                    </div>
+                    <span style="font-size: 0.75rem; font-weight: 700; background: rgba(14, 165, 233, 0.15); color: var(--sky-700); padding: 4px 10px; border-radius: var(--radius-full);">
+                        Live Area Curve
+                    </span>
+                </div>
+
+                <div style="position: relative; height: 320px;">
+                    <canvas id="areaChartCanvas"></canvas>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: 0.8rem; color: var(--text-muted);">
+                    <div><span style="display: inline-block; width: 10px; height: 10px; background: #0ea5e9; border-radius: 50%; margin-right: 6px;"></span>Sky Blue Area: Detection Confidence %</div>
+                    <div>Threshold: &ge; 45% Triggers Forensic Incident</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Detailed Forensic Incidents Log Table for Uploaded Video -->
+        <div class="chart-card card-3d" style="margin-bottom: 40px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+                <div>
+                    <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--slate-900);">
+                        <i class="fa-solid fa-table-list" style="color: var(--sky-600); margin-right: 8px;"></i>
+                        Uploaded Video Incident Evidence Log
+                    </h3>
+                    <div style="font-size: 0.82rem; color: var(--text-muted);">
+                        Verified forensic snapshots and timestamps recorded in MySQL database
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <a href="/api/export_incidents" class="btn-outline-sky" style="padding: 8px 16px; font-size: 0.82rem;">
+                        <i class="fa-solid fa-download"></i> Download Report (CSV)
+                    </a>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="forensic-table">
+                    <thead>
+                        <tr>
+                            <th>Incident ID</th>
+                            <th>Timestamp</th>
+                            <th>Crime Category</th>
+                            <th>Confidence</th>
+                            <th>Threat Severity</th>
+                            <th>Forensic Evidence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="incidentsTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                                <i class="fa-solid fa-spinner fa-spin" style="margin-right: 6px;"></i>
+                                Awaiting video analysis stream...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal for Enlarged Snapshot Viewing -->
+    <div id="imageModal" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(8px); z-index: 2000; align-items: center; justify-content: center; padding: 20px;">
+        <div style="background: white; border-radius: 16px; max-width: 720px; width: 100%; overflow: hidden; box-shadow: var(--shadow-3d); border: 1px solid var(--border-sky);">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border-light);">
+                <div style="font-weight: 700; color: var(--slate-900);" id="modalTitle">Forensic Snapshot Evidence</div>
+                <button onclick="document.getElementById('imageModal').style.display='none'" style="background: none; border: none; font-size: 1.2rem; color: var(--text-muted); cursor: pointer;">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div style="padding: 16px; text-align: center;">
+                <img id="modalImg" src="" alt="Snapshot" style="max-width: 100%; border-radius: 8px; border: 1px solid var(--border-sky);">
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer style="background: white; border-top: 1px solid var(--border-sky); padding: 20px 24px; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
+        SENTINEL-AI CCTV Autonomous Intelligence &copy; 2026 | Pure White &amp; Sky Blue Edition
+    </footer>
+
+    <!-- Real-Time Graphs Controller Script for Uploaded Video -->
+    <script>
+        // DOM Elements
+        const activeVideoBadge = document.getElementById('activeVideoBadge');
+        const kpiTotalFrames = document.getElementById('kpiTotalFrames');
+        const kpiPeakConf = document.getElementById('kpiPeakConf');
+        const kpiDominantCrime = document.getElementById('kpiDominantCrime');
+        const kpiIncidentCount = document.getElementById('kpiIncidentCount');
+        const incidentsTableBody = document.getElementById('incidentsTableBody');
+
+        // Color Palettes for Chart.js
+        const skyColors = [
+            '#0ea5e9', '#0284c7', '#38bdf8', '#7dd3fc', 
+            '#ef4444', '#f59e0b', '#10b981', '#6366f1', 
+            '#ec4899', '#8b5cf6', '#cbd5e1'
+        ];
+
+        // 1. Initialize Real-Time Distribution Chart (Doughnut)
+        const distCtx = document.getElementById('distributionChartCanvas').getContext('2d');
+        const distributionChart = new Chart(distCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Normal activity'],
+                datasets: [{
+                    data: [100],
+                    backgroundColor: skyColors,
+                    borderWidth: 2,
+                    borderColor: '#ffffff',
+                    hoverOffset: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: {
+                            font: { family: 'Plus Jakarta Sans', size: 11, weight: '600' },
+                            color: '#334155',
+                            boxWidth: 14,
+                            padding: 10
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.label}: ${context.raw}%`;
+                            }
+                        }
+                    }
+                },
+                cutout: '62%'
+            }
+        });
+
+        // 2. Initialize Real-Time Timeline Area Chart (Spline Curve with Sky-Blue Gradient Fill)
+        const areaCtx = document.getElementById('areaChartCanvas').getContext('2d');
+        const gradientFill = areaCtx.createLinearGradient(0, 0, 0, 300);
+        gradientFill.addColorStop(0, 'rgba(14, 165, 233, 0.45)');
+        gradientFill.addColorStop(1, 'rgba(14, 165, 233, 0.02)');
+
+        const areaChart = new Chart(areaCtx, {
+            type: 'line',
+            data: {
+                labels: ['00:00'],
+                datasets: [{
+                    label: 'Confidence %',
+                    data: [98],
+                    fill: true,
+                    backgroundColor: gradientFill,
+                    borderColor: '#0284c7',
+                    borderWidth: 2.5,
+                    tension: 0.35,
+                    pointRadius: 2,
+                    pointHoverRadius: 6,
+                    pointBackgroundColor: '#0ea5e9',
+                    pointBorderColor: '#ffffff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 300 },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            font: { family: 'Plus Jakarta Sans', size: 10, weight: '600' },
+                            color: '#64748b',
+                            maxTicksLimit: 12
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 100,
+                        grid: { color: 'rgba(224, 242, 254, 0.7)' },
+                        ticks: {
+                            font: { family: 'Plus Jakarta Sans', size: 10, weight: '600' },
+                            color: '#64748b',
+                            stepSize: 20,
+                            callback: function(value) { return value + '%'; }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0f172a',
+                        titleFont: { family: 'Plus Jakarta Sans', weight: '700' },
+                        bodyFont: { family: 'Plus Jakarta Sans' },
+                        padding: 10,
+                        cornerRadius: 8,
+                        callbacks: {
+                            label: function(context) {
+                                return ` Threat Confidence: ${context.raw}%`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Function to Open Modal for Forensic Snapshot
+        function openSnapshotModal(imgSrc, title) {
+            const modal = document.getElementById('imageModal');
+            document.getElementById('modalImg').src = imgSrc;
+            document.getElementById('modalTitle').textContent = title || 'Forensic Snapshot Evidence';
+            modal.style.display = 'flex';
+        }
+
+        // Real-Time Poller for Uploaded Video Analytics & Graphs
+        let pollTimer = null;
+        let hasRenderedReport = false;
+
+        async function fetchUploadAnalytics() {
+            try {
+                const res = await fetch('/api/upload_analytics');
+                const data = await res.json();
+                if (!data) return;
+
+                const kpis = data.kpis || {};
+                
+                // If we already have a loaded report, never wipe it out with empty data
+                if (hasRenderedReport && kpis.total_points === 0) {
+                    return;
+                }
+
+                if (kpis.total_points > 0) {
+                    hasRenderedReport = true;
+                }
+
+                // Update Active Video & Completion Status Label
+                if (data.active_video && data.active_video !== "Standby (Upload Video to Analyze)") {
+                    const statusText = data.is_completed ? 
+                        '<span class="hud-badge safe" style="margin-left: 8px;"><i class="fa-solid fa-circle-check"></i> Single-Pass Analysis Completed</span>' : 
+                        '<span class="hud-badge elevated" style="margin-left: 8px;"><i class="fa-solid fa-spinner fa-spin"></i> Analyzing Video Stream</span>';
+                    activeVideoBadge.innerHTML = `<i class="fa-solid fa-film" style="color: var(--sky-600); margin-right: 4px;"></i> ${data.active_video} ${statusText}`;
+                }
+
+                // Update KPIs
+                kpiTotalFrames.textContent = kpis.total_points || 0;
+                kpiPeakConf.textContent = `${Math.round(kpis.peak_conf || 0)}%`;
+                kpiDominantCrime.textContent = kpis.dominant_crime || 'Normal activity';
+                kpiIncidentCount.textContent = kpis.incident_count || 0;
+
+                // Update Distribution Doughnut Chart
+                const distData = data.distribution || {};
+                const nonZeroLabels = [];
+                const nonZeroValues = [];
+                for (const [k, v] of Object.entries(distData)) {
+                    if (v > 0.4) {
+                        nonZeroLabels.push(k);
+                        nonZeroValues.push(v);
+                    }
+                }
+
+                if (nonZeroLabels.length > 0) {
+                    distributionChart.data.labels = nonZeroLabels;
+                    distributionChart.data.datasets[0].data = nonZeroValues;
+                    distributionChart.update('none');
+                }
+
+                // Update Timeline Area Chart across the whole video
+                const timeline = data.timeline || [];
+                if (timeline.length > 0) {
+                    const timeLabels = timeline.map(p => p.time);
+                    const confValues = timeline.map(p => p.conf);
+
+                    areaChart.data.labels = timeLabels;
+                    areaChart.data.datasets[0].data = confValues;
+                    areaChart.update('none');
+                }
+
+                // Update Incidents Table
+                const incidents = data.incidents || [];
+                if (incidents.length > 0) {
+                    let rows = '';
+                    incidents.forEach(inc => {
+                        const sevClass = inc.severity === 'CRITICAL' ? 'critical' : 'warning';
+                        const thumbSrc = inc.snapshot ? `/alerts/${inc.snapshot}` : '';
+                        rows += `
+                        <tr>
+                            <td style="font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600; color: var(--sky-800);">#${inc.id}</td>
+                            <td style="font-size: 0.82rem; color: var(--text-muted);">${inc.timestamp}</td>
+                            <td style="font-weight: 700; color: var(--slate-900);">${inc.label}</td>
+                            <td style="font-weight: 800; color: var(--sky-700);">${Math.round(inc.confidence)}%</td>
+                            <td><span class="hud-badge ${sevClass}">${inc.severity}</span></td>
+                            <td>
+                                ${thumbSrc ? `<img src="${thumbSrc}" class="snapshot-thumb" alt="Evidence" onclick="openSnapshotModal('${thumbSrc}', '${inc.label} - ${inc.timestamp}')">` : '<span style="color: var(--text-muted); font-size: 0.78rem;">No Image</span>'}
+                            </td>
+                        </tr>`;
+                    });
+                    incidentsTableBody.innerHTML = rows;
+                } else if (!hasRenderedReport) {
+                    incidentsTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.88rem;">
+                                No crime incidents logged for this video session yet.
+                            </td>
+                        </tr>`;
+                }
+
+                // If video analysis is finished, reduce polling to save CPU
+                if (data.is_completed && timeline.length > 0) {
+                    if (pollTimer) clearInterval(pollTimer);
+                    pollTimer = setInterval(fetchUploadAnalytics, 4000);
+                }
+
+            } catch (err) {
+                console.error("Error polling upload analytics:", err);
+            }
+        }
+
+        // Initial fetch and regular polling
+        fetchUploadAnalytics();
+        pollTimer = setInterval(fetchUploadAnalytics, 800);
+    </script>
+</body>
+</html>

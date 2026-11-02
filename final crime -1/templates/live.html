@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Camera Surveillance | Sentinel-AI</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230284c7'><path d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z'/></svg>">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vanilla-tilt/1.8.0/vanilla-tilt.min.js"></script>
+    <style>
+        .prob-bar-container {
+            margin-bottom: 12px;
+        }
+        .prob-bar-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--slate-800);
+            margin-bottom: 4px;
+        }
+        .prob-track {
+            height: 7px;
+            background: var(--sky-100);
+            border-radius: var(--radius-full);
+            overflow: hidden;
+            position: relative;
+        }
+        .prob-fill {
+            height: 100%;
+            border-radius: var(--radius-full);
+            background: linear-gradient(90deg, var(--sky-400), var(--sky-600));
+            width: 0%;
+            transition: width 0.3s ease, background 0.3s ease;
+        }
+        .prob-fill.critical {
+            background: linear-gradient(90deg, #f87171, #ef4444);
+        }
+        .prob-fill.warning {
+            background: linear-gradient(90deg, #fbbf24, #f59e0b);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sticky Glass Navbar -->
+    <header class="navbar">
+        <a href="/" class="nav-brand">
+            <div class="brand-icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div class="brand-info">
+                <h1>SENTINEL-AI <span class="brand-badge">YOLO11</span></h1>
+                <div class="brand-tagline">Autonomous Crime Intelligence Engine</div>
+            </div>
+        </a>
+
+        <nav class="nav-links">
+            <a href="/" class="nav-item"><i class="fa-solid fa-house"></i> Portfolio</a>
+            <a href="/upload" class="nav-item"><i class="fa-solid fa-video"></i> Video Studio &amp; Graphs</a>
+            <a href="/live" class="nav-item active"><i class="fa-solid fa-camera"></i> Live Webcam</a>
+        </nav>
+
+        <div class="nav-auth">
+            {% if session.get('user') %}
+                <span style="font-size: 0.85rem; font-weight: 700; color: var(--sky-800); background: var(--sky-100); padding: 6px 14px; border-radius: 20px;">
+                    <i class="fa-solid fa-user-check"></i> {{ session.get('user').fullname }}
+                </span>
+                <a href="/logout" class="btn-nav-login" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">Logout</a>
+            {% else %}
+                <a href="/login" class="btn-nav-login">Sign In</a>
+                <a href="/signup" class="btn-nav-signup">Get Started</a>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Main Live Surveillance Console -->
+    <main style="max-width: 1400px; margin: 24px auto; padding: 0 20px; flex: 1;">
+        
+        <!-- Live Header Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 14px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="pulse-dot"></span>
+                <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--slate-900); letter-spacing: -0.02em;">
+                    Live Camera Surveillance Portal
+                </h1>
+                <span id="threatLevelBadge" class="hud-badge safe">SAFE STATUS</span>
+            </div>
+
+            <!-- Quick Controls -->
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <select id="cameraIndexSelect" class="form-control" style="width: auto; padding: 8px 12px; font-weight: 600;">
+                    <option value="0">Camera 0 (Default Webcam)</option>
+                    <option value="1">Camera 1 (USB / External)</option>
+                    <option value="2">Camera 2 (Secondary)</option>
+                </select>
+
+                <button id="startCamBtn" class="btn-primary-sky" style="padding: 10px 20px; font-size: 0.88rem;">
+                    <i class="fa-solid fa-play"></i> Start Camera
+                </button>
+
+                <button id="stopCamBtn" class="btn-outline-sky" style="padding: 10px 18px; font-size: 0.88rem;">
+                    <i class="fa-solid fa-stop"></i> Stop
+                </button>
+            </div>
+        </div>
+
+        <!-- 3-Column Layout: Video Stream | Probabilities | Incident Logs -->
+        <div style="display: grid; grid-template-columns: 1fr 340px; gap: 24px; align-items: start;">
+            
+            <!-- Left: Main Live Stream Viewport -->
+            <div>
+                <div class="card-3d" style="padding: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <div style="font-size: 0.88rem; font-weight: 700; color: var(--slate-800);">
+                            <i class="fa-solid fa-circle" style="color: var(--accent-safe); font-size: 0.65rem; margin-right: 6px;"></i>
+                            YOLO11 Live Inference Feed (30 FPS)
+                        </div>
+                        <div id="liveFpsDisplay" style="font-size: 0.8rem; font-weight: 700; color: var(--sky-700); background: var(--sky-50); padding: 4px 10px; border-radius: var(--radius-full); border: 1px solid var(--border-sky);">
+                            FPS: 0.0
+                        </div>
+                    </div>
+
+                    <!-- Surveillance Viewport -->
+                    <div class="surveillance-viewport">
+                        <img id="liveVideoStream" class="surveillance-stream" src="/video_feed" alt="Live Surveillance Feed">
+                    </div>
+
+                    <!-- HUD Footer Metrics -->
+                    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 18px;">
+                        <div style="background: var(--sky-50); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-sky); text-align: center;">
+                            <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Top Category</div>
+                            <div id="hudTopCrime" style="font-size: 1.05rem; font-weight: 800; color: var(--slate-900); margin-top: 2px;">Normal activity</div>
+                        </div>
+
+                        <div style="background: var(--sky-50); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-sky); text-align: center;">
+                            <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Confidence</div>
+                            <div id="hudTopConf" style="font-size: 1.05rem; font-weight: 800; color: var(--sky-700); margin-top: 2px;">98%</div>
+                        </div>
+
+                        <div style="background: var(--sky-50); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-sky); text-align: center;">
+                            <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Theft / Phone</div>
+                            <div id="hudTheftStatus" style="font-size: 1.05rem; font-weight: 800; color: #059669; margin-top: 2px;">Monitored</div>
+                        </div>
+
+                        <div style="background: var(--sky-50); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-sky); text-align: center;">
+                            <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Total Incidents</div>
+                            <div id="hudIncidentCount" style="font-size: 1.05rem; font-weight: 800; color: var(--slate-900); margin-top: 2px;">0</div>
+                        </div>
+
+                        <div style="background: var(--sky-50); padding: 12px; border-radius: var(--radius-md); border: 1px solid var(--border-sky); text-align: center;">
+                            <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Email Alert</div>
+                            <div id="hudEmailAlert" style="font-size: 0.95rem; font-weight: 800; color: #0284c7; margin-top: 2px;">Armed (Once)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Live Incidents Table -->
+                <div class="card-3d" style="padding: 22px; margin-top: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--slate-900);">
+                            <i class="fa-solid fa-bell" style="color: var(--sky-600); margin-right: 8px;"></i>
+                            Live Incident Alerts & Evidence
+                        </h3>
+                        <button id="clearIncidentsBtn" class="btn-outline-sky" style="padding: 6px 14px; font-size: 0.78rem;">
+                            Clear Alerts
+                        </button>
+                    </div>
+
+                    <div id="incidentList" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;">
+                        <div id="noIncidentsMsg" style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.9rem;">
+                            <i class="fa-solid fa-shield" style="font-size: 2rem; color: var(--sky-300); margin-bottom: 8px; display: block;"></i>
+                            No crime incidents triggered. Surveillance environment is peaceful.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: 11-Crime Category Real-Time Meters -->
+            <div class="card-3d" style="padding: 22px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;">
+                    <h3 style="font-size: 1.05rem; font-weight: 700; color: var(--slate-900);">
+                        <i class="fa-solid fa-chart-simple" style="color: var(--sky-600); margin-right: 8px;"></i>
+                        11-Class Spectrum
+                    </h3>
+                    <span style="font-size: 0.72rem; font-weight: 700; color: var(--sky-700); background: var(--sky-100); padding: 3px 8px; border-radius: var(--radius-full);">
+                        Live
+                    </span>
+                </div>
+
+                <div id="probabilityBarsList">
+                    {% for c in crime_classes %}
+                    <div class="prob-bar-container" data-crime="{{ c }}">
+                        <div class="prob-bar-header">
+                            <span>{{ c }}</span>
+                            <span class="prob-val" style="color: var(--sky-700);">{{ '98%' if c == 'Normal activity' else '0%' }}</span>
+                        </div>
+                        <div class="prob-track">
+                            <div class="prob-fill {{ 'critical' if c in ['Fighting', 'Shooting', 'Robbery'] else ('warning' if c in ['Stealing', 'Shoplifting'] else '') }}" 
+                                 style="width: {{ '98%' if c == 'Normal activity' else '0%' }};"></div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-sky); font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
+                    <i class="fa-solid fa-circle-info" style="color: var(--sky-500); margin-right: 4px;"></i>
+                    Probabilities update dynamically from YOLO11 output logits with temporal exponential smoothing.
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer style="background: white; border-top: 1px solid var(--border-sky); padding: 20px 24px; text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-top: 40px;">
+        SENTINEL-AI CCTV Autonomous Intelligence &copy; 2026 | Pure White &amp; Sky Blue Edition
+    </footer>
+
+    <!-- Live Webcam Controller Script -->
+    <script>
+        const startCamBtn = document.getElementById('startCamBtn');
+        const stopCamBtn = document.getElementById('stopCamBtn');
+        const camSelect = document.getElementById('cameraIndexSelect');
+        const liveStream = document.getElementById('liveVideoStream');
+        const threatBadge = document.getElementById('threatLevelBadge');
+        const fpsDisplay = document.getElementById('liveFpsDisplay');
+        const hudTopCrime = document.getElementById('hudTopCrime');
+        const hudTopConf = document.getElementById('hudTopConf');
+        const hudTheftStatus = document.getElementById('hudTheftStatus');
+        const hudIncidentCount = document.getElementById('hudIncidentCount');
+        const incidentList = document.getElementById('incidentList');
+        const noIncidentsMsg = document.getElementById('noIncidentsMsg');
+        const clearIncidentsBtn = document.getElementById('clearIncidentsBtn');
+
+        // On page load, always ensure clean refreshed standby and stop any previous video stream
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await fetch('/api/reset', { method: 'POST' });
+                liveStream.src = `/video_feed?t=${Date.now()}`;
+            } catch (e) {}
+        });
+
+        // Start Webcam Handler
+        startCamBtn.addEventListener('click', async () => {
+            const camIdx = camSelect.value;
+            try {
+                const res = await fetch('/api/source', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_type: 'webcam', camera_index: camIdx })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    liveStream.src = `/video_feed?t=${Date.now()}`;
+                } else {
+                    alert('Error starting webcam: ' + (data.error || 'Camera not accessible'));
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        // Stop Webcam Handler
+        stopCamBtn.addEventListener('click', async () => {
+            try {
+                await fetch('/api/reset', { method: 'POST' });
+                liveStream.src = `/video_feed?t=${Date.now()}`;
+            } catch (e) {
+                console.error(e);
+            }
+        });
+
+        // Clear Incidents Handler
+        clearIncidentsBtn.addEventListener('click', async () => {
+            try {
+                await fetch('/api/clear_incidents', { method: 'POST' });
+                incidentList.innerHTML = `<div id="noIncidentsMsg" style="text-align: center; padding: 30px; color: var(--text-muted); font-size: 0.9rem;">
+                    <i class="fa-solid fa-shield" style="font-size: 2rem; color: var(--sky-300); margin-bottom: 8px; display: block;"></i>
+                    No crime incidents triggered. Surveillance environment is peaceful.
+                </div>`;
+                hudIncidentCount.textContent = '0';
+            } catch (e) {
+                console.error(e);
+            }
+        });
+
+        // Live Telemetry Poller
+        setInterval(async () => {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                if (!data) return;
+
+                // Update FPS & Top Crime
+                fpsDisplay.textContent = `FPS: ${(data.fps || 0).toFixed(1)}`;
+                hudTopCrime.textContent = data.top_crime || 'Normal activity';
+                hudTopConf.textContent = `${Math.round(data.top_conf || 98)}%`;
+                hudIncidentCount.textContent = data.incident_count || 0;
+
+                // Update Email Alert Status
+                const hudEmailAlert = document.getElementById('hudEmailAlert');
+                if (hudEmailAlert) {
+                    if (data.email_alert_sent) {
+                        hudEmailAlert.innerHTML = '<span style="color: #dc2626;"><i class="fa-solid fa-paper-plane"></i> Sent (Once)</span>';
+                    } else {
+                        hudEmailAlert.innerHTML = '<span style="color: #0284c7;">Armed (Once)</span>';
+                    }
+                }
+
+                // Update Threat Badge
+                const threat = data.threat_level || 'SAFE';
+                threatBadge.textContent = `${threat} STATUS`;
+                threatBadge.className = `hud-badge ${threat.toLowerCase()}`;
+
+                // Update Theft/Phone status
+                const probs = data.crime_probabilities || {};
+                const shopliftingConf = probs['Shoplifting'] || 0;
+                const stealingConf = probs['Stealing'] || 0;
+
+                if (shopliftingConf > 40 || stealingConf > 40) {
+                    hudTheftStatus.textContent = 'DETECTED';
+                    hudTheftStatus.style.color = '#dc2626';
+                } else {
+                    hudTheftStatus.textContent = 'Monitored';
+                    hudTheftStatus.style.color = '#059669';
+                }
+
+                // Update Probability Progress Bars
+                for (const [crime, val] of Object.entries(probs)) {
+                    const row = document.querySelector(`.prob-bar-container[data-crime="${crime}"]`);
+                    if (row) {
+                        const valEl = row.querySelector('.prob-val');
+                        const fillEl = row.querySelector('.prob-fill');
+                        const rounded = Math.round(val);
+                        valEl.textContent = `${rounded}%`;
+                        fillEl.style.width = `${rounded}%`;
+                    }
+                }
+
+                // Poll Incidents
+                const incRes = await fetch('/api/incidents');
+                const incData = await incRes.json();
+                if (incData && incData.incidents && incData.incidents.length > 0) {
+                    let html = '';
+                    incData.incidents.forEach(inc => {
+                        html += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: var(--sky-50); border: 1px solid var(--border-sky); border-radius: 8px;">
+                            <div>
+                                <span style="font-weight: 700; font-size: 0.88rem; color: #dc2626;">${inc.label}</span>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">${inc.timestamp}</div>
+                            </div>
+                            <span style="font-weight: 800; font-size: 0.85rem; color: var(--sky-800);">${Math.round(inc.confidence)}%</span>
+                        </div>`;
+                    });
+                    incidentList.innerHTML = html;
+                }
+            } catch (e) {}
+        }, 800);
+    </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+names:
+  0: Fighting
+  1: Assault
+  2: Robbery
+  3: Stealing
+  4: Shoplifting
+  5: Burglary
+  6: Shooting
+  7: Arson
+  8: Explosion
+  9: Vandalism
+  10: Normal activity
+nc: 11
+path: c:/Users/vishw/OneDrive/Desktop/crime/datasets/crime_surveillance
+roboflow:
+  license: CC BY 4.0
+  project: urban-crime-cctv-detection
+  url: https://universe.roboflow.com/surveillance-ai-research/urban-crime-cctv-detection/dataset/4
+  version: 4
+  workspace: surveillance-ai-research
+test: images/test
+train: images/train
+val: images/val
